@@ -3,7 +3,8 @@
 <head>
         <meta charset="utf-8" />
         <title>Have a break, have a debugger - wisk</title>
-        <link rel="stylesheet" href="/theme/css/main.css" />
+        <link rel="stylesheet" href="https://wisk.github.io/theme/css/main.css" />
+        <link href="https://wisk.github.io/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Have a break, have a debugger Atom Feed" />
 
         <!--[if IE]>
             <script src="https://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
@@ -11,44 +12,570 @@
 </head>
 
 <body id="index" class="home">
+<a href="https://github.com/wisk">
+<img style="position: absolute; top: 0; right: 0; border: 0;" src="https://s3.amazonaws.com/github/ribbons/forkme_right_red_aa0000.png" alt="Fork me on GitHub" />
+</a>
         <header id="banner" class="body">
-                <h1><a href="/">Have a break, have a debugger </a></h1>
+                <h1><a href="https://wisk.github.io/">Have a break, have a debugger </a></h1>
                 <nav><ul>
-                    <li><a href="/category/crash-test.html">crash-test</a></li>
+                    <li><a href="https://wisk.github.io/category/medusa.html">Medusa</a></li>
                 </ul></nav>
         </header><!-- /#banner -->
 
             <aside id="featured" class="body">
                 <article>
-                    <h1 class="entry-title"><a href="/test.html">test</a></h1>
+                    <h1 class="entry-title"><a href="https://wisk.github.io/how-to-emulate-executable-with-medusa-and-python-part-0.html">How to emulate executable with Medusa and python (part 0)</a></h1>
 <footer class="post-info">
-        <abbr class="published" title="2015-11-29T22:11:00+01:00">
-                Published: Sun 29 November 2015
+        <abbr class="published" title="2015-12-09T00:00:00+01:00">
+                Published: Wed 09 December 2015
         </abbr>
 
         <address class="vcard author">
-                By                         <a class="url fn" href="/author/wisk.html">wisk</a>
+                By                         <a class="url fn" href="https://wisk.github.io/author/wisk.html">wisk</a>
         </address>
-<p>In <a href="/category/crash-test.html">crash-test</a>.</p>
-<p>tags: <a href="/tag/test123.html">test123</a> </p>
-</footer><!-- /.post-info --><p>This is test yo</p>                </article>
+<p>In <a href="https://wisk.github.io/category/medusa.html">Medusa</a>.</p>
+<p>tags: <a href="https://wisk.github.io/tag/medusa.html">medusa</a> <a href="https://wisk.github.io/tag/emulation.html">emulation</a> <a href="https://wisk.github.io/tag/x86-64.html">x86-64</a> <a href="https://wisk.github.io/tag/python.html">python</a> </p>
+</footer><!-- /.post-info --><div class="section" id="motivations">
+<h2>Motivations</h2>
+<p>Sometimes it could be useful to emulate an executable in order to analyze it, doing as such allows us to:</p>
+<ul class="simple">
+<li>control what the target can access by managing memory, API, etc;</li>
+<li>modify the execution on-the-fly;</li>
+<li>monitoring;</li>
+<li>and so on.</li>
+</ul>
+<p>In this case, the target is <strong>ls</strong> and the host machine is a Windows. I'm perfectly aware it'd be easier to install <em>cygwin</em> (which I already did), but the aim here is to show off how we can emulate a program, not get rid of <strong>dir</strong>.
+<strong>ls</strong> is a good example to demonstrate how to emulate an executable with Medusa because this kind of executable requires a lot of interactions with the system.
+You can find the used version of <strong>ls</strong> <a class="reference external" href="https://github.com/wisk/samples/blob/master/exe/ls.elf.x86-64">here</a></p>
+<p>This example required, at least, the git version <em>6f084016826604d387ad6106e3e64e4f7aff48aa</em> of Medusa to work, &lt;spoiler_alert&gt;the final script it available <a class="reference external" href="https://github.com/wisk/medusa/blob/dev/examples/emul_ls_x86-64.py">at this address</a>&lt;/spoiler_alert&gt;.</p>
+</div>
+<div class="section" id="how-does-it-work">
+<h2>How does it work?</h2>
+<div class="section" id="processor-and-memory">
+<h3>Processor and memory</h3>
+<p>Medusa relies on YAML files to describe each instructions, most of them also contain a specific field name <tt class="docutils literal">semantic</tt> for instance for the instruction <tt class="docutils literal">add</tt>:</p>
+<div class="highlight"><pre><span class="p-Indicator">-</span> <span class="l-Scalar-Plain">opcode</span><span class="p-Indicator">:</span> <span class="l-Scalar-Plain">0x00</span>
+  <span class="l-Scalar-Plain">mnemonic</span><span class="p-Indicator">:</span> <span class="l-Scalar-Plain">add</span>
+  <span class="l-Scalar-Plain">operand</span><span class="p-Indicator">:</span> <span class="p-Indicator">[</span> <span class="nv">Eb</span><span class="p-Indicator">,</span> <span class="nv">Gb</span> <span class="p-Indicator">]</span>
+  <span class="l-Scalar-Plain">update_flags</span><span class="p-Indicator">:</span> <span class="p-Indicator">[</span> <span class="nv">cf</span><span class="p-Indicator">,</span> <span class="nv">pf</span><span class="p-Indicator">,</span> <span class="nv">af</span><span class="p-Indicator">,</span> <span class="nv">zf</span><span class="p-Indicator">,</span> <span class="nv">sf</span><span class="p-Indicator">,</span> <span class="nv">of</span> <span class="p-Indicator">]</span>
+  <span class="l-Scalar-Plain">semantic</span><span class="p-Indicator">:</span> <span class="nv">*add</span>
+</pre></div>
+<p>We have a reference to the anchor... <tt class="docutils literal">add</tt> which gives us:</p>
+<div class="highlight"><pre><span class="n">add</span><span class="p">:</span> <span class="o">&amp;</span><span class="n">add</span> <span class="o">|</span>
+  <span class="n">alloc_var</span><span class="p">(</span><span class="s">&#39;res&#39;</span><span class="p">,</span> <span class="n">op0</span><span class="o">.</span><span class="n">bit</span><span class="p">);</span>
+  <span class="n">res</span><span class="o">.</span><span class="n">val</span> <span class="o">=</span> <span class="n">op0</span><span class="o">.</span><span class="n">val</span> <span class="o">+</span> <span class="n">op1</span><span class="o">.</span><span class="n">val</span><span class="p">;</span>
+  <span class="n">call</span><span class="p">(</span><span class="s">&#39;overflow_flag_add&#39;</span><span class="p">);</span>
+  <span class="n">call</span><span class="p">(</span><span class="s">&#39;carry_flag_add&#39;</span><span class="p">);</span>
+  <span class="n">call</span><span class="p">(</span><span class="s">&#39;sign_flag&#39;</span><span class="p">);</span>
+  <span class="n">call</span><span class="p">(</span><span class="s">&#39;zero_flag&#39;</span><span class="p">);</span>
+  <span class="n">call</span><span class="p">(</span><span class="s">&#39;parity_flag&#39;</span><span class="p">);</span>
+  <span class="n">call</span><span class="p">(</span><span class="s">&#39;adjust_flag&#39;</span><span class="p">);</span>
+  <span class="n">op0</span><span class="o">.</span><span class="n">val</span> <span class="o">=</span> <span class="n">res</span><span class="o">.</span><span class="n">val</span><span class="p">;</span>
+  <span class="n">free_var</span><span class="p">(</span><span class="s">&#39;res&#39;</span><span class="p">);</span>
+</pre></div>
+<p>This code is actually written in <tt class="docutils literal">python</tt> because it's easier to parse using <tt class="docutils literal">ast</tt> module.
+But Medusa is written in C++, so we use a python script to convert this code into C++ which will call Medusa API to Expressions classes.
+A Expression class represents our IR (intermediate language), it allows to express behavior like: assignment, unary operation, binary operation, etc.
+Thus, from a given instruction, we can retrieve its behavior and then apply them to a processor and memory context (since both are required to actually run a program).</p>
+<p>Alright, this is cool, but not enough.</p>
+</div>
+<div class="section" id="environment">
+<h3>Environment</h3>
+<p>If only processor and memory are emulated, what will happen when we try to execute our program?
+It's likely to get stuck on the first imported API (or <em>syscall</em> or whatever). Since there's neither loader or loaded module(s), the program will try to use an unmapped address and then stop.
+To address this issue, it's important to fill these imported addresses (like a loader would do) to give something to actually execute for the program.
+They're different solutions to handle this.</p>
+<ul class="simple">
+<li>Load required modules (recursively); <em>pro</em>: the emulation is closer to the reality; <em>con</em>: it's slower and complicated, you'll end to a <em>syscall</em> execution which it's usually more challenging to handle.</li>
+<li>Write a unique dummy value for each entries and setup a breakpoint to these values, once the breakpoint is fired up, you're freely to modify the processor and memory contexts to emulate the function behavior; <em>plus</em>: easier to implement, quicker, finer control on the execution; <em>con</em>: a bit hackish, some malwares could rely on loaded modules to retrieve information.</li>
+</ul>
+<p>At the time of writing, only the second method is handled by Medusa.</p>
+</div>
+</div>
+<div class="section" id="pydusa">
+<h2>Pydusa</h2>
+<p>Pydusa is the python binding for Medusa, even if not all API are accessible yet, it will be enough for this tutorial.</p>
+<div class="section" id="executable-loading">
+<h3>Executable loading</h3>
+<p>First step is to load the executable:</p>
+<div class="highlight"><pre><span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">pydusa</span>
+
+<span class="n">exec_path</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">db_path</span> <span class="o">=</span> <span class="n">exec_path</span> <span class="o">+</span> <span class="s">&#39;.mdb&#39;</span>
+
+<span class="n">pydusa</span><span class="o">.</span><span class="n">log_to_stdout</span><span class="p">()</span>
+
+<span class="n">core</span> <span class="o">=</span> <span class="n">pydusa</span><span class="o">.</span><span class="n">Medusa</span><span class="p">()</span>
+<span class="n">core</span><span class="o">.</span><span class="n">open_exe</span><span class="p">(</span><span class="n">exec_path</span><span class="p">,</span> <span class="n">db_path</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span>
+<span class="n">core</span><span class="o">.</span><span class="n">wait_for_tasks</span><span class="p">()</span>
+<span class="n">doc</span> <span class="o">=</span> <span class="n">core</span><span class="o">.</span><span class="n">document</span>
+</pre></div>
+<p>The beginning is pretty straightforward, let's take a look at the parameter of method <tt class="docutils literal">Medusa.open_exe</tt>: the first parameter is the executable path; the next parameter is the path for a database, this feature is still under development(, we have to use it anyways to avoid to break method signature later); the last parameter is a boolean which tells if you want Medusa to try to analyze the executable or not, since we want it to emulate, we don't actually need it, so False saves us time. :)
+Finally, we call the method <tt class="docutils literal">Medusa.wait_for_tasks</tt> to be sure there's no task in the queue.</p>
+<p>Now we can initialize the emulator:</p>
+<div class="highlight"><pre><span class="n">exe</span> <span class="o">=</span> <span class="n">pydusa</span><span class="o">.</span><span class="n">Execution</span><span class="p">(</span><span class="n">doc</span><span class="p">)</span>
+<span class="n">exe</span><span class="o">.</span><span class="n">init</span><span class="p">([</span><span class="n">exec_path</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s">&#39;</span><span class="se">\\</span><span class="s">&#39;</span><span class="p">,</span> <span class="s">&#39;/&#39;</span><span class="p">),</span> <span class="s">&#39;-l&#39;</span><span class="p">,</span> <span class="s">&#39;C:</span><span class="se">\\</span><span class="s">&#39;</span><span class="p">],</span> <span class="p">[</span> <span class="p">],</span> <span class="s">&#39;&#39;</span><span class="p">)</span>
+<span class="n">exe</span><span class="o">.</span><span class="n">set_emulator</span><span class="p">(</span><span class="s">&#39;interpreter&#39;</span><span class="p">)</span>
+</pre></div>
+<p>This class requires a <tt class="docutils literal">Document</tt> instance, then we have to call the method <tt class="docutils literal">Execution.init</tt> to initialize: the program arguments, environment and current working directory.
+In this sample, we set <tt class="docutils literal">argv[0]</tt> to the current program name but replacing <em>\</em> to <em>/</em> because Windows vs. UNIX path. We also want to option <em>-l</em> to bring more details and finally tell ls to list files from <em>C:\</em>.
+For this time, we'll rely on the emulator <em>interpreter</em>, but you're free to try with the <a class="reference external" href="https://github.com/wisk/medusa/tree/dev/src/emul/llvm">LLVM back-end</a> .</p>
+<p>As mentioned previously, we need to handle imported function carefully, to so we'll register a basic handler to display the symbol name. Therefore; we'll be able to add a specific handler for the called symbol:</p>
+<div class="highlight"><pre><span class="k">def</span> <span class="nf">on_unk_api</span><span class="p">(</span><span class="n">cpu</span><span class="p">,</span> <span class="n">mem</span><span class="p">,</span> <span class="n">ad</span><span class="p">):</span>
+    <span class="k">global</span> <span class="n">exe</span>
+    <span class="k">print</span> <span class="s">&#39;unhandled function: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">exe</span><span class="o">.</span><span class="n">get_hook_name</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">STOP</span>
+
+<span class="k">for</span> <span class="n">lbl</span> <span class="ow">in</span> <span class="n">doc</span><span class="o">.</span><span class="n">labels</span><span class="p">:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">lbl</span><span class="o">.</span><span class="n">is_imp</span><span class="p">:</span>
+        <span class="k">continue</span>
+    <span class="k">print</span> <span class="s">&#39;[!] default handler for imported symbol: &quot;</span><span class="si">%s</span><span class="s">&quot;&#39;</span> <span class="o">%</span> <span class="n">lbl</span><span class="o">.</span><span class="n">name</span>
+    <span class="n">exe</span><span class="o">.</span><span class="n">hook_fn</span><span class="p">(</span><span class="n">lbl</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">on_unk_api</span><span class="p">)</span>
+</pre></div>
+<p>Handler will be explained later, don't worry.</p>
+<p>You may want to also display information for each instruction, so we add a hook for each instruction:</p>
+<div class="highlight"><pre><span class="k">def</span> <span class="nf">on_insn</span><span class="p">(</span><span class="n">cpu</span><span class="p">,</span> <span class="n">mem</span><span class="p">,</span> <span class="n">ad</span><span class="p">):</span>
+    <span class="k">global</span> <span class="n">core</span>
+
+    <span class="k">print</span> <span class="s">&#39;_&#39;</span> <span class="o">*</span> <span class="mi">80</span>
+    <span class="k">print</span> <span class="n">cpu</span>
+    <span class="n">insn</span> <span class="o">=</span> <span class="n">core</span><span class="o">.</span><span class="n">disasm_cur_insn</span><span class="p">(</span><span class="n">cpu</span><span class="p">,</span> <span class="n">mem</span><span class="p">)</span>
+    <span class="k">print</span> <span class="n">core</span><span class="o">.</span><span class="n">fmt_cell</span><span class="p">(</span><span class="n">ad</span><span class="p">,</span> <span class="n">insn</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">CONTINUE</span>
+
+<span class="n">exe</span><span class="o">.</span><span class="n">hook_insn</span><span class="p">(</span><span class="n">on_insn</span><span class="p">)</span>
+</pre></div>
+<p><tt class="docutils literal">Execution.hook_insn</tt> slows down the execution, so use it with care.</p>
+<p>Finally, we can start the execution:</p>
+<div class="highlight"><pre><span class="n">start_addr</span> <span class="o">=</span> <span class="n">doc</span><span class="o">.</span><span class="n">get_label_addr</span><span class="p">(</span><span class="s">&#39;start&#39;</span><span class="p">)</span>
+<span class="n">exe</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">start_addr</span><span class="p">)</span>
+</pre></div>
+<p><tt class="docutils literal">Execution.execute</tt> takes a <tt class="docutils literal">pydusa.Address</tt> as parameter instead of a simple <tt class="docutils literal">int</tt>.</p>
+</div>
+<div class="section" id="imported-functions">
+<h3>Imported functions</h3>
+<div class="section" id="libc-start-main">
+<h4>__libc_start_main</h4>
+<p>The program should not run far... As previously mentioned, an executable relies (mostly) on imported functions. For instance, almost every Linux executables have to call the function <tt class="docutils literal">__libc_start_main</tt> in order to initialize: <em>constructor</em> / <em>destructor</em> and other stuff. It's also responsible to call the real <tt class="docutils literal">main</tt> function(, the one you write in C/C++).
+To reproduce its behavior, we'll simply redirect the RIP register to the <tt class="docutils literal">main</tt> function and simply ignore both <em>constructor</em> and <em>destructor</em> routines.</p>
+<div class="highlight"><pre><span class="k">def</span> <span class="nf">on_libc_start_main</span><span class="p">(</span><span class="n">cpu</span><span class="p">,</span> <span class="n">mem</span><span class="p">,</span> <span class="n">ad</span><span class="p">):</span>
+    <span class="k">global</span> <span class="n">exe</span>
+    <span class="c"># ref: https://refspecs.linuxbase.org/LSB_3.0.0/LSB-PDA/LSB-PDA.junk/baselib---libc-start-main-.html</span>
+    <span class="n">main</span>      <span class="o">=</span> <span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">argc</span>      <span class="o">=</span> <span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">ubp_av</span>    <span class="o">=</span> <span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">init</span>      <span class="o">=</span> <span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+    <span class="n">fini</span>      <span class="o">=</span> <span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+    <span class="n">rtld_fini</span> <span class="o">=</span> <span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
+    <span class="n">stack_end</span> <span class="o">=</span> <span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span>
+
+    <span class="k">print</span> <span class="s">&#39;__libc_start_main(</span><span class="si">%016x</span><span class="s">, </span><span class="si">%d</span><span class="s">, </span><span class="si">%016x</span><span class="s">, </span><span class="si">%016x</span><span class="s">, </span><span class="si">%016x</span><span class="s">, </span><span class="si">%016x</span><span class="s">, </span><span class="si">%016x</span><span class="s">)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">main</span><span class="p">,</span> <span class="n">argc</span><span class="p">,</span> <span class="n">ubp_av</span><span class="p">,</span> <span class="n">init</span><span class="p">,</span> <span class="n">fini</span><span class="p">,</span> <span class="n">rtld_fini</span><span class="p">,</span> <span class="n">stack_end</span><span class="p">)</span>
+
+    <span class="c"># there&#39;s no set_func_param function yet</span>
+    <span class="n">cpu</span><span class="o">.</span><span class="n">rdi</span> <span class="o">=</span> <span class="n">argc</span>
+    <span class="n">cpu</span><span class="o">.</span><span class="n">rsi</span> <span class="o">=</span> <span class="n">ubp_av</span>
+    <span class="n">cpu</span><span class="o">.</span><span class="n">rdx</span> <span class="o">=</span> <span class="mi">0</span> <span class="c"># environ is nullptr</span>
+
+    <span class="n">cpu</span><span class="o">.</span><span class="n">rip</span>   <span class="o">=</span> <span class="n">main</span>
+
+    <span class="k">return</span> <span class="n">BREAK</span>
+</pre></div>
+<p>First we have to define our own <tt class="docutils literal">__libc_start_main</tt> function named <tt class="docutils literal">on_libc_start_main</tt>, it's simply a python function here.
+Now let's retrieve parameters, you can either retrieve them using the processor and memory contexts. But here, it's easier to use the method <tt class="docutils literal">Execution.get_func_param</tt> since we know the calling convention of this function. The <tt class="docutils literal">exe</tt> variable is defined as global to get the one which was previously instantiated.
+Here, all parameters are retrieved and printed, of course it's not mandatory.
+Unfortunately, there's not <tt class="docutils literal">set_func_param</tt> method to set parameters for the main function, so these parameters are set manually. RIP now contains the address of <tt class="docutils literal">main</tt> function to emulate a jump still instruction.
+Finally we return <tt class="docutils literal">BREAK</tt> to tell the execution engine to stop the execution of this basic block. Actually, <tt class="docutils literal">CONTINUE</tt> will also work since this function is called using a <strong>call</strong> or <strong>jmp</strong> instruction which would mark the end of the current basic block.</p>
+<p>Once the <em>fake</em> function is defined, it's important to register it as a callback for the targeted function, a call to <tt class="docutils literal">Execution.hook_fn</tt> is required:</p>
+<div class="highlight"><pre><span class="k">assert</span><span class="p">(</span><span class="n">exe</span><span class="o">.</span><span class="n">hook_fn</span><span class="p">(</span><span class="s">&#39;__libc_start_main&#39;</span><span class="p">,</span> <span class="n">on_libc_start_main</span><span class="p">))</span>
+</pre></div>
+<p>Internally, this method will write a dummy address in the GOT location for <tt class="docutils literal">__libc_start_main</tt> and then set a breakpoint on this dummy address.</p>
+<div class="highlight"><pre><span class="nf">xor</span>              <span class="nb">ebp</span><span class="p">,</span> <span class="nb">ebp</span>
+<span class="nf">mov</span>              <span class="nv">r9</span><span class="p">,</span> <span class="nb">rdx</span>
+<span class="nf">pop</span>              <span class="nb">rsi</span>
+<span class="nf">mov</span>              <span class="nb">rdx</span><span class="p">,</span> <span class="nb">rsp</span>
+<span class="nf">and</span>              <span class="nb">rsp</span><span class="p">,</span> <span class="mh">0xFFFFFFFFFFFFFFF0</span>
+<span class="nf">push</span>             <span class="nb">rax</span>
+<span class="nf">push</span>             <span class="nb">rsp</span>
+<span class="nf">mov</span>              <span class="nv">r8</span><span class="p">,</span> <span class="mh">0x00411810</span>
+<span class="nf">mov</span>              <span class="nb">rcx</span><span class="p">,</span> <span class="mh">0x00411820</span>
+<span class="nf">mov</span>              <span class="nb">rdi</span><span class="p">,</span> <span class="mh">0x00408010</span>
+<span class="nf">call</span>             <span class="mh">0x004022D0</span>
+<span class="nf">________________________________________________________________________________</span>
+<span class="nl">rax:</span> <span class="err">0000000000000000</span> <span class="nl">rbx:</span>    <span class="err">0000000000000000</span> <span class="nl">rcx:</span> <span class="err">0000000000411820</span> <span class="nl">rdx:</span> <span class="err">00000000</span><span class="nf">bedd4fa8</span>
+<span class="nl">rsi:</span> <span class="err">0000000000000003</span> <span class="nl">rdi:</span>    <span class="err">0000000000408010</span> <span class="nl">rsp:</span> <span class="err">00000000</span><span class="nf">bedd4f88</span> <span class="nb">rbp</span><span class="p">:</span> <span class="mi">0000000000000000</span>
+<span class="nl">r8:</span>  <span class="err">0000000000411810</span> <span class="nl">r9:</span>     <span class="err">0000000000000000</span> <span class="nl">r10:</span> <span class="err">0000000000000000</span> <span class="nl">r11:</span> <span class="err">0000000000000000</span>
+<span class="nl">r12:</span> <span class="err">0000000000000000</span> <span class="nl">r13:</span>    <span class="err">0000000000000000</span> <span class="nl">r14:</span> <span class="err">0000000000000000</span> <span class="nl">r15:</span> <span class="err">0000000000000000</span>
+<span class="nl">rip:</span> <span class="err">00000000004022</span><span class="nf">d0</span> <span class="nv">rflags</span><span class="p">:</span> <span class="nv">cPazstido</span>
+<span class="nl">xmm0:</span>  <span class="err">00000000000000000000000000000000</span> <span class="nl">xmm1:</span>  <span class="err">00000000000000000000000000000000</span>
+<span class="nl">xmm2:</span>  <span class="err">00000000000000000000000000000000</span> <span class="nl">xmm3:</span>  <span class="err">00000000000000000000000000000000</span>
+<span class="nl">xmm4:</span>  <span class="err">00000000000000000000000000000000</span> <span class="nl">xmm5:</span>  <span class="err">00000000000000000000000000000000</span>
+<span class="nl">xmm6:</span>  <span class="err">00000000000000000000000000000000</span> <span class="nl">xmm7:</span>  <span class="err">00000000000000000000000000000000</span>
+<span class="nl">xmm8:</span>  <span class="err">00000000000000000000000000000000</span> <span class="nl">xmm9:</span>  <span class="err">00000000000000000000000000000000</span>
+<span class="nl">xmm10:</span> <span class="err">00000000000000000000000000000000</span> <span class="nl">xmm11:</span> <span class="err">00000000000000000000000000000000</span>
+<span class="nl">xmm12:</span> <span class="err">00000000000000000000000000000000</span> <span class="nl">xmm13:</span> <span class="err">00000000000000000000000000000000</span>
+<span class="nl">xmm14:</span> <span class="err">00000000000000000000000000000000</span> <span class="nl">xmm15:</span> <span class="err">00000000000000000000000000000000</span>
+<span class="nl">cs:</span> <span class="err">0000</span> <span class="nl">ds:</span> <span class="err">0000</span> <span class="nl">es:</span> <span class="err">0000</span> <span class="nl">ss:</span> <span class="err">0000</span> <span class="nl">fs:</span> <span class="err">0038</span> <span class="nl">gs:</span> <span class="err">0000</span>
+
+<span class="nf">jmp</span>              <span class="kt">qword</span> <span class="p">[</span><span class="nv">__libc_start_main</span><span class="p">]</span>
+<span class="nf">__libc_start_main</span><span class="p">(</span><span class="mi">0000000000408010</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mb">00000000b</span><span class="nv">edd4fa8</span><span class="p">,</span> <span class="mi">0000000000411820</span><span class="p">,</span> <span class="mi">0000000000411810</span><span class="p">,</span> <span class="mi">0000000000000000</span><span class="p">,</span> <span class="mi">0000000000000000</span><span class="p">)</span>
+</pre></div>
+<p>A simple <tt class="docutils literal">ls <span class="pre">-l</span> C:\</tt> requires 43 functions to be handled, it'll be boring to detail all of these, so let's focus on the most interesting ones.</p>
+</div>
+<div class="section" id="fwrite-unlocked">
+<h4>fwrite_unlocked</h4>
+<p><tt class="docutils literal">fwrite_unlocked</tt> is used by ls to write on the <tt class="docutils literal">stdout</tt>, so it's important to emulate it correctly.</p>
+<div class="highlight"><pre><span class="k">def</span> <span class="nf">on_fwrite_unlocked</span><span class="p">(</span><span class="n">cpu</span><span class="p">,</span> <span class="n">mem</span><span class="p">,</span> <span class="n">ad</span><span class="p">):</span>
+    <span class="k">global</span> <span class="n">exe</span><span class="p">,</span> <span class="n">OUTPUT</span>
+    <span class="c"># ref: http://linux.die.net/man/3/fwrite_unlocked</span>
+    <span class="n">ptr</span>    <span class="o">=</span> <span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">size</span>   <span class="o">=</span> <span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">n</span>      <span class="o">=</span> <span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">stream</span> <span class="o">=</span> <span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+
+    <span class="n">exe</span><span class="o">.</span><span class="n">ret_from_func</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+
+    <span class="n">ptr_s</span> <span class="o">=</span> <span class="n">mem</span><span class="o">.</span><span class="n">read_utf8</span><span class="p">(</span><span class="n">ptr</span><span class="p">)</span>
+
+    <span class="k">print</span> <span class="s">&#39;fwrite_unlocked(</span><span class="si">%016x</span><span class="s">[&quot;</span><span class="si">%s</span><span class="s">&quot;], </span><span class="si">%016x</span><span class="s">, </span><span class="si">%016x</span><span class="s">, </span><span class="si">%016x</span><span class="s">)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">ptr</span><span class="p">,</span> <span class="n">ptr_s</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">stream</span><span class="p">)</span>
+
+    <span class="n">OUTPUT</span> <span class="o">+=</span> <span class="n">ptr_s</span><span class="p">[:</span><span class="n">size</span> <span class="o">*</span> <span class="n">n</span><span class="p">]</span>
+
+    <span class="n">cpu</span><span class="o">.</span><span class="n">rax</span> <span class="o">=</span> <span class="n">size</span> <span class="o">*</span> <span class="n">n</span>
+    <span class="k">return</span> <span class="n">BREAK</span>
+</pre></div>
+<p>As seen previously, we can rely on <tt class="docutils literal">exe</tt> to get parameters. However, this time we need to read the actual string pointed by <tt class="docutils literal">ptr</tt>. <tt class="docutils literal">MemoryContext.read_utf8</tt> will do that for us, it simply tries to read a null terminated string using a pointer and returns a <strong>str</strong> python object. If it fails to read the string, an <tt class="docutils literal">None</tt> object is returned instead.
+This <em>fake</em> function also needs a special handling for the return address. It wasn't require for <tt class="docutils literal">__libc_start_main</tt> because the RIP register was changed manually. In this case, we need to emulate a <em>pop rip</em> to return from the call; sometimes we also need to clean stack (e.g. <strong>stdcall</strong> calling convention) to emulate the return from function correctly.
+Once again, <tt class="docutils literal">Execution.ret_from_func</tt> provides a way to do this handling, it requires the calling convention and the number of parameters. The last parameter is only required for <strong>stdcall</strong> calling convention since the callee function is responsible of cleaning the stack. This sample contains a valid number of parameters for the sake of correctness, but it's not mandatory.</p>
+<p>To be able to print the final result properly, we store every write to <tt class="docutils literal">stdout</tt> in a global variable named <tt class="docutils literal">OUTPUT</tt>.</p>
+</div>
+<div class="section" id="overflow">
+<h4>__overflow</h4>
+<div class="highlight"><pre><span class="k">def</span> <span class="nf">on___overflow</span><span class="p">(</span><span class="n">cpu</span><span class="p">,</span> <span class="n">mem</span><span class="p">,</span> <span class="n">ad</span><span class="p">):</span>
+    <span class="k">global</span> <span class="n">exe</span><span class="p">,</span> <span class="n">OUTPUT</span>
+
+    <span class="n">f</span> <span class="o">=</span> <span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">exe</span><span class="o">.</span><span class="n">ret_from_func</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+
+    <span class="k">print</span> <span class="s">&#39;__overflow(</span><span class="si">%016x</span><span class="s">, </span><span class="si">%08x</span><span class="s">)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
+
+    <span class="n">cpu</span><span class="o">.</span><span class="n">rax</span> <span class="o">=</span> <span class="n">c</span>
+
+    <span class="n">OUTPUT</span> <span class="o">+=</span> <span class="nb">chr</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">BREAK</span>
+</pre></div>
+<p>Its definition is simple, however I waste so much time to figure out that it's a <tt class="docutils literal">putchar</tt>-like function... Tricky name.</p>
+</div>
+<div class="section" id="malloc">
+<h4>malloc</h4>
+<p>Probably one of the most cumbersome function to implement because it requires:</p>
+<ul class="simple">
+<li>memory allocation for the memory context,</li>
+<li>an allocator,</li>
+<li>and be compatible with memory management functions (e.g. <tt class="docutils literal">realloc</tt>, <tt class="docutils literal">free</tt>, etc).</li>
+</ul>
+<div class="highlight"><pre><span class="n">alloc_addr</span> <span class="o">=</span> <span class="mh">0xB0000000</span>
+<span class="n">alloc_pos</span>  <span class="o">=</span> <span class="mi">0</span>
+
+<span class="k">def</span> <span class="nf">on_malloc</span><span class="p">(</span><span class="n">cpu</span><span class="p">,</span> <span class="n">mem</span><span class="p">,</span> <span class="n">ad</span><span class="p">):</span>
+    <span class="k">global</span> <span class="n">exe</span><span class="p">,</span> <span class="n">alloc_addr</span><span class="p">,</span> <span class="n">alloc_pos</span><span class="p">,</span> <span class="n">alloced</span>
+
+    <span class="n">size</span> <span class="o">=</span> <span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+    <span class="n">exe</span><span class="o">.</span><span class="n">ret_from_func</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">ptr_alloc</span> <span class="o">=</span> <span class="n">alloc_addr</span> <span class="o">+</span> <span class="n">alloc_pos</span>
+    <span class="k">print</span><span class="p">(</span><span class="s">&quot;malloc(0x</span><span class="si">%08x</span><span class="s">) = 0x</span><span class="si">%016x</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">size</span><span class="p">,</span> <span class="n">ptr_alloc</span><span class="p">))</span>
+
+    <span class="n">size</span> <span class="o">=</span> <span class="p">(</span><span class="n">size</span> <span class="o">+</span> <span class="mh">0x1000</span><span class="p">)</span> <span class="o">&amp;</span> <span class="mh">0xFFFFF000</span> <span class="c"># Pages alignment</span>
+    <span class="n">mem</span><span class="o">.</span><span class="n">alloc</span><span class="p">(</span><span class="n">ptr_alloc</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">R_W</span><span class="p">)</span>
+    <span class="n">alloc_pos</span> <span class="o">+=</span> <span class="n">size</span>
+
+    <span class="n">cpu</span><span class="o">.</span><span class="n">rax</span> <span class="o">=</span> <span class="n">ptr_alloc</span>
+    <span class="k">return</span> <span class="n">BREAK</span>
+</pre></div>
+<p>This implementation is unoptimized and really simple, <tt class="docutils literal">alloc_addr</tt> is the base address of the heap, <tt class="docutils literal">alloc_pos</tt> is the current heap offset. <tt class="docutils literal">MemoryContext.alloc</tt> allows this function to allocate memory, it requires: an address which is the current heap address, the size is provided by the parameter and a flag to tell the memory protection, here read and write.</p>
+</div>
+<div class="section" id="xstat">
+<h4>__xstat</h4>
+<p>This function is really important to emulate ls with the option <em>-l</em>, it allows to retrieve files information.</p>
+<div class="highlight"><pre><span class="k">def</span> <span class="nf">on___xstat</span><span class="p">(</span><span class="n">cpu</span><span class="p">,</span> <span class="n">mem</span><span class="p">,</span> <span class="n">ad</span><span class="p">):</span>
+    <span class="k">global</span> <span class="n">exe</span>
+    <span class="c"># ref: https://refspecs.linuxfoundation.org/LSB_3.0.0/LSB-PDA/LSB-PDA/baselib-xstat-1.html</span>
+    <span class="n">ver</span>      <span class="o">=</span> <span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">path</span>     <span class="o">=</span> <span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">stat_buf</span> <span class="o">=</span> <span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+
+    <span class="n">exe</span><span class="o">.</span><span class="n">ret_from_func</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+
+    <span class="n">path_str</span> <span class="o">=</span> <span class="n">mem</span><span class="o">.</span><span class="n">read_utf8</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+
+    <span class="k">print</span> <span class="s">&#39;__xstat(</span><span class="si">%d</span><span class="s">, </span><span class="si">%016x</span><span class="s">[&quot;</span><span class="si">%s</span><span class="s">&quot;], </span><span class="si">%016x</span><span class="s">)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">ver</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">path_str</span><span class="p">,</span> <span class="n">stat_buf</span><span class="p">)</span>
+
+    <span class="n">STAT_SIZE</span> <span class="o">=</span> <span class="mi">4</span> <span class="o">+</span> <span class="mi">8</span> <span class="o">+</span> <span class="mi">8</span> <span class="o">+</span> <span class="mi">4</span> <span class="o">+</span> <span class="mi">4</span> <span class="o">+</span> <span class="mi">4</span> <span class="o">+</span> <span class="mi">4</span> <span class="o">+</span> <span class="mi">4</span> <span class="o">+</span> <span class="mi">8</span> <span class="o">+</span> <span class="mi">8</span> <span class="o">+</span> <span class="mi">8</span> <span class="o">+</span> <span class="mi">4</span> <span class="o">+</span> <span class="mi">4</span> <span class="o">+</span> <span class="mi">4</span>
+
+    <span class="n">mem</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">stat_buf</span><span class="p">,</span> <span class="s">&#39;</span><span class="se">\x00</span><span class="s">&#39;</span> <span class="o">*</span> <span class="n">STAT_SIZE</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">STAT_SIZE</span><span class="p">):</span>
+        <span class="n">mem</span><span class="o">.</span><span class="n">write_u32</span><span class="p">(</span><span class="n">stat_buf</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="mi">4</span><span class="p">,</span> <span class="n">i</span> <span class="o">*</span> <span class="mi">4</span><span class="p">)</span>
+
+    <span class="n">st_mode</span> <span class="o">=</span> <span class="mo">0755</span><span class="p">;</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">path_str</span><span class="p">):</span>
+        <span class="n">st_mode</span> <span class="o">|=</span>  <span class="mo">040000</span> <span class="c"># S_IFDIR</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">st_mode</span> <span class="o">|=</span> <span class="mo">0100000</span> <span class="c"># S_IFREG</span>
+
+    <span class="n">st_size</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">getsize</span><span class="p">(</span><span class="n">path_str</span><span class="p">)</span>
+
+    <span class="n">mem</span><span class="o">.</span><span class="n">write_u32</span><span class="p">(</span><span class="n">stat_buf</span> <span class="o">+</span> <span class="mh">0x18</span><span class="p">,</span> <span class="n">st_mode</span><span class="p">)</span>
+    <span class="n">mem</span><span class="o">.</span><span class="n">write_u64</span><span class="p">(</span><span class="n">stat_buf</span> <span class="o">+</span> <span class="mh">0x30</span><span class="p">,</span> <span class="n">st_size</span><span class="p">)</span>
+</pre></div>
+<p>The good news is the design of this API makes the caller to provide memory buffer <tt class="docutils literal">stat_buf</tt>, so allocation is no needed.
+The bad news is: how to figure out fields offset of <tt class="docutils literal">struct stat</tt> correctly?
+Structure is not yet handled by Medusa (<a class="reference external" href="https://github.com/wisk/medusa/blob/dev/src/test/test_core.cpp#L54">work in progress</a>), to overcome this issue, you may want to simply write dummy values bound to the offset, that's the purpose of the for loop.
+It appears that <strong>0x18</strong> is <tt class="docutils literal">st_mode</tt> and <strong>0x30</strong> is <tt class="docutils literal">st_size</tt> in this case, but these structure could changed a lot (especially on Linux), so be careful with your own version.</p>
+</div>
+<div class="section" id="getpwuid">
+<h4>getpwuid</h4>
+<p>This API is used to convert a <tt class="docutils literal">UID</tt> to a real name.</p>
+<p>PW_ADDR = None</p>
+<div class="highlight"><pre><span class="k">def</span> <span class="nf">on_getpwuid</span><span class="p">(</span><span class="n">cpu</span><span class="p">,</span> <span class="n">mem</span><span class="p">,</span> <span class="n">ad</span><span class="p">):</span>
+    <span class="k">global</span> <span class="n">exe</span><span class="p">,</span> <span class="n">PW_ADDR</span>
+
+    <span class="n">uid</span> <span class="o">=</span> <span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+    <span class="n">exe</span><span class="o">.</span><span class="n">ret_from_func</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">print</span> <span class="s">&#39;getpwuid(</span><span class="si">%d</span><span class="s">)&#39;</span> <span class="o">%</span> <span class="n">uid</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">PW_ADDR</span><span class="p">:</span>
+        <span class="c">##  struct passwd {</span>
+        <span class="c">##    char *pw_name;</span>
+        <span class="c">##    char *pw_passwd;</span>
+        <span class="c">##    uid_t pw_uid;</span>
+        <span class="c">##    gid_t pw_gid;</span>
+        <span class="c">##    time_t pw_change;</span>
+        <span class="c">##    char *pw_class;</span>
+        <span class="c">##    char *pw_gecos;</span>
+        <span class="c">##    char *pw_dir;</span>
+        <span class="c">##    char *pw_shell;</span>
+        <span class="c">##    time_t pw_expire;</span>
+        <span class="c">##  };</span>
+
+        <span class="n">PW_ADDR</span> <span class="o">=</span> <span class="mh">0x90000000</span>
+
+        <span class="n">mem</span><span class="o">.</span><span class="n">alloc</span><span class="p">(</span><span class="n">PW_ADDR</span><span class="p">,</span> <span class="mh">0x200</span><span class="p">,</span> <span class="n">R_W</span><span class="p">)</span>
+        <span class="n">mem</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">PW_ADDR</span><span class="p">,</span> <span class="s">&#39;</span><span class="se">\x00</span><span class="s">&#39;</span> <span class="o">*</span> <span class="mh">0x200</span><span class="p">)</span>
+
+        <span class="n">PW_NAME</span> <span class="o">=</span> <span class="n">PW_ADDR</span> <span class="o">+</span> <span class="mi">8</span> <span class="o">+</span> <span class="mi">8</span> <span class="o">+</span> <span class="mi">4</span> <span class="o">+</span> <span class="mi">4</span> <span class="o">+</span> <span class="mi">4</span> <span class="o">+</span> <span class="mi">8</span> <span class="o">+</span> <span class="mi">8</span> <span class="o">+</span> <span class="mi">8</span> <span class="o">+</span> <span class="mi">8</span> <span class="o">+</span> <span class="mi">4</span>
+        <span class="n">mem</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">PW_NAME</span><span class="p">,</span> <span class="s">&#39;wisk&#39;</span><span class="p">)</span>
+        <span class="n">mem</span><span class="o">.</span><span class="n">write_u64</span><span class="p">(</span><span class="n">PW_ADDR</span><span class="p">,</span> <span class="n">PW_NAME</span><span class="p">)</span>
+
+    <span class="n">cpu</span><span class="o">.</span><span class="n">rax</span> <span class="o">=</span> <span class="n">PW_ADDR</span>
+    <span class="k">return</span> <span class="n">BREAK</span>
+</pre></div>
+<p>What makes this API difficult to implement is its old design, this function returns a pointer allocated from no where.
+To solve this issue, a memory allocation is needed. <tt class="docutils literal">PW_ADDR</tt> is a dummy address which will hold the pointer to the structure <tt class="docutils literal">passwd</tt>. To allocate this memory only once, a global variable is used. Not a clean way to code, but it does the work.
+It's actually easier to perform one allocation for both the structure <tt class="docutils literal">passwd</tt> and the content of the field <tt class="docutils literal">pw_name</tt>.
+<em>The user name is hard-coded cause I'm lazy, so is the group name. :)</em></p>
+</div>
+<div class="section" id="getopt-long">
+<h4>getopt_long</h4>
+<p>This function is important to implement if you want ls to understand arguments passed during initialization.</p>
+<div class="highlight"><pre><span class="k">def</span> <span class="nf">on_getopt_long</span><span class="p">(</span><span class="n">cpu</span><span class="p">,</span> <span class="n">mem</span><span class="p">,</span> <span class="n">ad</span><span class="p">):</span>
+    <span class="k">global</span> <span class="n">exe</span><span class="p">,</span> <span class="n">doc</span><span class="p">,</span> <span class="n">GETOPT_IDX</span>
+    <span class="c"># ref: http://linux.die.net/man/3/getopt_long</span>
+    <span class="n">argc</span>      <span class="o">=</span> <span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">argv</span>      <span class="o">=</span> <span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">optstring</span> <span class="o">=</span> <span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">longopts</span>  <span class="o">=</span> <span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+    <span class="n">longindex</span> <span class="o">=</span> <span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+
+    <span class="n">exe</span><span class="o">.</span><span class="n">ret_from_func</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
+
+    <span class="n">argv_list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">argc</span><span class="p">):</span>
+        <span class="n">arg_ptr</span> <span class="o">=</span> <span class="n">mem</span><span class="o">.</span><span class="n">read_u64</span><span class="p">(</span><span class="n">argv</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="mi">8</span><span class="p">)</span>
+        <span class="n">arg_str</span> <span class="o">=</span> <span class="n">mem</span><span class="o">.</span><span class="n">read_utf8</span><span class="p">(</span><span class="n">arg_ptr</span><span class="p">)</span>
+        <span class="n">argv_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">arg_str</span><span class="p">)</span>
+
+    <span class="n">optstring_str</span> <span class="o">=</span> <span class="n">mem</span><span class="o">.</span><span class="n">read_utf8</span><span class="p">(</span><span class="n">optstring</span><span class="p">)</span>
+
+    <span class="n">res</span> <span class="o">=</span> <span class="bp">None</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c"># ref: https://docs.python.org/2/library/getopt.html</span>
+        <span class="n">opts</span><span class="p">,</span> <span class="n">args</span> <span class="o">=</span> <span class="n">getopt</span><span class="o">.</span><span class="n">getopt</span><span class="p">(</span><span class="n">argv_list</span><span class="p">[</span><span class="n">GETOPT_IDX</span><span class="p">:],</span> <span class="n">optstring_str</span><span class="p">)</span>
+        <span class="k">print</span> <span class="n">opts</span><span class="p">,</span> <span class="n">args</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">opts</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">opt</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">opts</span><span class="p">:</span>
+                <span class="n">GETOPT_IDX</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="n">res</span> <span class="o">=</span> <span class="nb">ord</span><span class="p">(</span><span class="n">opt</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+    <span class="k">except</span> <span class="n">getopt</span><span class="o">.</span><span class="n">GetoptError</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="nb">ord</span><span class="p">(</span><span class="s">&#39;?&#39;</span><span class="p">)</span>
+
+    <span class="n">res_str</span> <span class="o">=</span> <span class="bp">None</span>
+    <span class="k">if</span> <span class="n">res</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+        <span class="n">res_str</span> <span class="o">=</span> <span class="s">&#39;-1&#39;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">res_str</span> <span class="o">=</span> <span class="s">&#39;</span><span class="se">\&#39;</span><span class="si">%c</span><span class="se">\&#39;</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">res</span>
+
+    <span class="k">print</span> <span class="s">&#39;getopt_long(</span><span class="si">%d</span><span class="s">, </span><span class="si">%016x</span><span class="s">[&quot;</span><span class="si">%s</span><span class="s">&quot;], </span><span class="si">%016x</span><span class="s">[&quot;</span><span class="si">%s</span><span class="s">&quot;], </span><span class="si">%016x</span><span class="s">, </span><span class="si">%016x</span><span class="s">) = </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span>\
+        <span class="p">(</span><span class="n">argc</span><span class="p">,</span> <span class="n">argv</span><span class="p">,</span> <span class="s">&#39;;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">argv_list</span><span class="p">),</span> <span class="n">optstring</span><span class="p">,</span> <span class="n">optstring_str</span><span class="p">,</span> <span class="n">longopts</span><span class="p">,</span> <span class="n">longindex</span><span class="p">,</span> <span class="n">res_str</span><span class="p">)</span>
+
+    <span class="n">cpu</span><span class="o">.</span><span class="n">rax</span> <span class="o">=</span> <span class="n">res</span> <span class="o">&amp;</span> <span class="mh">0xffffffff</span>
+
+
+    <span class="n">optind_addr</span> <span class="o">=</span> <span class="n">doc</span><span class="o">.</span><span class="n">get_label_addr</span><span class="p">(</span><span class="s">&#39;optind&#39;</span><span class="p">)</span>
+    <span class="n">mem</span><span class="o">.</span><span class="n">write_u32</span><span class="p">(</span><span class="n">optind_addr</span><span class="o">.</span><span class="n">offset</span><span class="p">,</span> <span class="n">GETOPT_IDX</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">BREAK</span>
+</pre></div>
+<p>This implementation uses the python version of <strong>getopt</strong>, however it's important to handle the update of the global variable <tt class="docutils literal">optind</tt>.
+A global variable <tt class="docutils literal">GETOPT_IDX</tt> holds the current index, at the end of this function, the address of <tt class="docutils literal">optind</tt> is retrieve with the method <tt class="docutils literal">Document.get_label_addr</tt> and updated with <tt class="docutils literal">MemoryContext.write_u32</tt>.</p>
+</div>
+<div class="section" id="sprintf-chk">
+<h4>__sprintf_chk</h4>
+<p><tt class="docutils literal">__sprintf__chk</tt> is a <em>secured</em> version of <tt class="docutils literal">sprintf</tt>. <em>Variadic</em> functions are pain to handle, this implementation may not work under specific case, for instance if a floating point value is formatted.</p>
+<div class="highlight"><pre><span class="k">def</span> <span class="nf">on___sprintf_chk</span><span class="p">(</span><span class="n">cpu</span><span class="p">,</span> <span class="n">mem</span><span class="p">,</span> <span class="n">ad</span><span class="p">):</span>
+    <span class="k">global</span> <span class="n">exe</span>
+    <span class="c"># ref: http://refspecs.linux-foundation.org/LSB_4.0.0/LSB-Core-generic/LSB-Core-generic/libc---sprintf-chk-1.html</span>
+    <span class="n">buf</span>    <span class="o">=</span> <span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">flag</span>   <span class="o">=</span> <span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">buflen</span> <span class="o">=</span> <span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">fmt</span>    <span class="o">=</span> <span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+
+    <span class="n">exe</span><span class="o">.</span><span class="n">ret_from_func</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+    <span class="n">fmt_str</span> <span class="o">=</span> <span class="n">mem</span><span class="o">.</span><span class="n">read_utf8</span><span class="p">(</span><span class="n">fmt</span><span class="p">)</span>
+
+    <span class="n">param_no</span> <span class="o">=</span> <span class="mi">4</span>
+    <span class="n">param</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">fmt_str</span><span class="p">)):</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">fmt_str</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">c</span> <span class="o">==</span> <span class="s">&#39;%&#39;</span><span class="p">:</span>
+            <span class="n">p</span> <span class="o">=</span> <span class="n">fmt_str</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">p</span> <span class="o">==</span> <span class="s">&#39;*&#39;</span><span class="p">:</span>
+                <span class="n">param</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="n">param_no</span><span class="p">))</span>
+                <span class="n">param_no</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="n">p</span> <span class="o">=</span> <span class="n">fmt_str</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">2</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="n">p</span> <span class="o">==</span> <span class="s">&#39;s&#39;</span><span class="p">:</span>
+                <span class="n">p_ptr</span> <span class="o">=</span> <span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="n">param_no</span><span class="p">)</span>
+                <span class="n">param</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">mem</span><span class="o">.</span><span class="n">read_utf8</span><span class="p">(</span><span class="n">p_ptr</span><span class="p">))</span>
+                <span class="n">param_no</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">continue</span>
+
+            <span class="n">param</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">exe</span><span class="o">.</span><span class="n">get_func_param</span><span class="p">(</span><span class="s">&#39;system_v&#39;</span><span class="p">,</span> <span class="n">param_no</span><span class="p">))</span>
+            <span class="n">param_no</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="n">res</span> <span class="o">=</span> <span class="n">fmt_str</span> <span class="o">%</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">param</span><span class="p">)</span>
+
+    <span class="k">print</span> <span class="s">&#39;__sprintf_chk(</span><span class="si">%016x</span><span class="s">, </span><span class="si">%d</span><span class="s">, </span><span class="si">%016x</span><span class="s">, </span><span class="si">%016x</span><span class="s">[&quot;</span><span class="si">%s</span><span class="s">&quot;], ...) = &quot;</span><span class="si">%s</span><span class="s">&quot;&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">buf</span><span class="p">,</span> <span class="n">flag</span><span class="p">,</span> <span class="n">buflen</span><span class="p">,</span> <span class="n">fmt</span><span class="p">,</span> <span class="n">fmt_str</span><span class="p">,</span> <span class="n">res</span><span class="p">)</span>
+
+    <span class="n">mem</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">buf</span><span class="p">,</span> <span class="n">res</span> <span class="o">+</span> <span class="s">&#39;</span><span class="se">\x00</span><span class="s">&#39;</span><span class="p">)</span>
+    <span class="n">cpu</span><span class="o">.</span><span class="n">rax</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">res</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+
+    <span class="k">return</span> <span class="n">BREAK</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="memory-layout">
+<h3>Memory layout</h3>
+<p>It's worth noting that when Medusa allocates memory, it'll fill the memory with the value <strong>0xfa</strong>.
+The bright side is it makes easier to find access to uninitialized memory by <em>grepping</em> for <em>fafa...</em>, however it may interfere with the execution.</p>
+<div class="section" id="stack-cookie">
+<h4>Stack cookie</h4>
+<p>On modern Linux, stack cookie is stored in a structure named <tt class="docutils literal">tcbhead_t</tt>. The code can access to this value through the segment register <tt class="docutils literal">fs</tt>. To handle this feature, it's important to add a mapping between <tt class="docutils literal">fs</tt> and a dummy <tt class="docutils literal">tcbhead_t</tt> structure:</p>
+<div class="highlight"><pre><span class="n">exe</span><span class="o">.</span><span class="n">mem</span><span class="o">.</span><span class="n">alloc</span><span class="p">(</span><span class="mh">0xd0000000</span><span class="p">,</span> <span class="mh">0x100</span><span class="p">,</span> <span class="n">R_W</span><span class="p">)</span> <span class="c"># fake tcbhead_t</span>
+<span class="n">exe</span><span class="o">.</span><span class="n">mem</span><span class="o">.</span><span class="n">write_u64</span><span class="p">(</span><span class="mh">0xd0000000</span> <span class="o">+</span> <span class="mh">0x28</span><span class="p">,</span> <span class="mh">0xdeadbeefdeadbeef</span><span class="p">)</span> <span class="c"># very random cookie</span>
+
+<span class="n">exe</span><span class="o">.</span><span class="n">cpu</span><span class="o">.</span><span class="n">fs</span> <span class="o">=</span> <span class="mh">0x38</span>
+<span class="n">tcb_addr</span> <span class="o">=</span> <span class="n">pydusa</span><span class="o">.</span><span class="n">Address</span><span class="p">(</span><span class="mh">0x38</span><span class="p">,</span> <span class="mh">0x0</span><span class="p">)</span>
+<span class="n">exe</span><span class="o">.</span><span class="n">cpu</span><span class="o">.</span><span class="n">add_mapping</span><span class="p">(</span><span class="n">tcb_addr</span><span class="p">,</span> <span class="mh">0xd0000000</span><span class="p">)</span>
+</pre></div>
+<p>Here, <tt class="docutils literal">fs</tt> is equal to <strong>0x38</strong> and the logical address of the structure is <strong>0xd0000000</strong>.
+Bonus: if you dump context for each instruction and look for <strong>deadbeef...</strong>, you'll able to find all stack checking.</p>
+</div>
+<div class="section" id="stdout">
+<h4>stdout</h4>
+<p>Last but not least, <tt class="docutils literal">stdout</tt> is actually a global structure of type <tt class="docutils literal">__IO_FILE</tt>. Even if this structure is opaque, some functions may try to access some of its fields.
+Luckily, zero out this structure seems to be enough to make these functions happy.</p>
+<div class="highlight"><pre><span class="n">exe</span><span class="o">.</span><span class="n">mem</span><span class="o">.</span><span class="n">alloc</span><span class="p">(</span><span class="mh">0xd0002000</span><span class="p">,</span> <span class="mh">0x100</span><span class="p">,</span> <span class="n">R_W</span><span class="p">)</span>
+<span class="n">exe</span><span class="o">.</span><span class="n">mem</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="mh">0xd0002000</span><span class="p">,</span> <span class="s">&#39;</span><span class="se">\x00</span><span class="s">&#39;</span> <span class="o">*</span> <span class="mh">0x100</span><span class="p">)</span>
+<span class="n">exe</span><span class="o">.</span><span class="n">mem</span><span class="o">.</span><span class="n">write_u64</span><span class="p">(</span><span class="n">doc</span><span class="o">.</span><span class="n">get_label_addr</span><span class="p">(</span><span class="s">&#39;stdout&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">offset</span><span class="p">,</span> <span class="mh">0xd0002000</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="section" id="result">
+<h2>Result</h2>
+<p>Here is the final result, since it's far too long to include all debug print (ftrace ersatz), it's truncated:</p>
+<pre class="literal-block">
+total 4526895530976
+drwxr-xr-x        None wisk iki          0 2015-12-07 20:38 $Recycle.Bin
+drwxr-xr-x        None wisk iki          0 2015-12-07 20:38 $WINDOWS.~BT
+drwxr-xr-x        None wisk iki          0 2015-12-07 20:38 $Windows.~WS
+-rwxr-xr-x        None wisk iki          1 2015-12-07 20:38 BOOTNXT
+drwxr-xr-x        None wisk iki          0 2015-12-07 20:38 Chocolatey
+drwxr-xr-x        None wisk iki          0 2015-12-07 20:38 Documents and Settings
+drwxr-xr-x        None wisk iki       4096 2015-12-07 20:38 Flashtool
+drwxr-xr-x        None wisk iki          0 2015-12-07 20:38 MSOCache
+drwxr-xr-x        None wisk iki       4096 2015-12-07 20:38 MinGW
+drwxr-xr-x        None wisk iki          0 2015-12-07 20:38 NVIDIA
+drwxr-xr-x        None wisk iki          0 2015-12-07 20:38 NvidiaLogging
+drwxr-xr-x        None wisk iki          0 2015-12-07 20:38 OneDriveTemp
+drwxr-xr-x        None wisk iki          0 2015-12-07 20:38 PerfLogs
+drwxr-xr-x        None wisk iki      20480 2015-12-07 20:38 Program Files
+drwxr-xr-x        None wisk iki      32768 2015-12-07 20:38 Program Files (x86)
+drwxr-xr-x        None wisk iki      12288 2015-12-07 20:38 ProgramData
+drwxr-xr-x        None wisk iki       4096 2015-12-07 20:38 Python27
+drwxr-xr-x        None wisk iki       4096 2015-12-07 20:38 Python33
+drwxr-xr-x        None wisk iki       4096 2015-12-07 20:38 Qt
+drwxr-xr-x        None wisk iki          0 2015-12-07 20:38 Recovery
+drwxr-xr-x        None wisk iki       4096 2015-12-07 20:38 System Volume Information
+drwxr-xr-x        None wisk iki          0 2015-12-07 20:38 Temp
+drwxr-xr-x        None wisk iki       4096 2015-12-07 20:38 Users
+drwxr-xr-x        None wisk iki      28672 2015-12-07 20:38 Windows
+-rwxr-xr-x        None wisk iki     398156 2015-12-07 20:38 bootmgr
+drwxr-xr-x        None wisk iki       4096 2015-12-07 20:38 cygwin
+drwxr-xr-x        None wisk iki       4096 2015-12-07 20:38 cygwin64
+-rwxr-xr-x        None wisk iki 2569613312 2015-12-07 20:38 hiberfil.sys
+-rwxr-xr-x        None wisk iki 4294967296 2015-12-07 20:38 pagefile.sys
+-rwxr-xr-x        None wisk iki  268435456 2015-12-07 20:38 swapfile.sys
+drwxr-xr-x        None wisk iki          0 2015-12-07 20:38 symbols
+</pre>
+</div>
+<div class="section" id="conclusions">
+<h2>Conclusions</h2>
+<p>Software emulation is both complex and fun to do. Focusing only on the processor is usually not enough(, unless you only want to emulate <em>shellcode</em> or stuff like that), that's why Medusa tries to provide a large set of API to overcome most of situations. Of course, they're still stuff to do and the next development on emulation will focus on helper for both heap allocator and format-string.
+Next time we'll see how to use LLVM back-end to improve speed and target something more exciting. :)</p>
+</div>
+<div class="section" id="acknowledge">
+<h2>Acknowledge</h2>
+<ul class="simple">
+<li>gg: who help me a lot with x86 semantic. :)</li>
+</ul>
+</div>
+<p>There are <a href="https://wisk.github.io/how-to-emulate-executable-with-medusa-and-python-part-0.html#disqus_thread">comments</a>.</p>                </article>
             </aside><!-- /#featured -->
         <section id="extras" class="body">
-                <div class="blogroll">
-                        <h2>blogroll</h2>
-                        <ul>
-                            <li><a href="http://getpelican.com/">Pelican</a></li>
-                            <li><a href="http://python.org/">Python.org</a></li>
-                            <li><a href="http://jinja.pocoo.org/">Jinja2</a></li>
-                            <li><a href="#">You can modify those links in your config file</a></li>
-                        </ul>
-                </div><!-- /.blogroll -->
                 <div class="social">
                         <h2>social</h2>
                         <ul>
+                            <li><a href="https://wisk.github.io/feeds/all.atom.xml" type="application/atom+xml" rel="alternate">atom feed</a></li>
 
-                            <li><a href="#">You can add links in your config file</a></li>
-                            <li><a href="#">Another social link</a></li>
+                            <li><a href="https://twitter.com/wysk">twitter</a></li>
+                            <li><a href="https://github.com/wisk">github</a></li>
                         </ul>
                 </div><!-- /.social -->
         </section><!-- /#extras -->
@@ -61,5 +588,24 @@
                 <p>The theme is by <a href="http://coding.smashingmagazine.com/2009/08/04/designing-a-html-5-layout-from-scratch/">Smashing Magazine</a>, thanks!</p>
         </footer><!-- /#contentinfo -->
 
+    <script type="text/javascript">
+    var _gaq = _gaq || [];
+    _gaq.push(['_setAccount', 'UA-71040480-1']);
+    _gaq.push(['_trackPageview']);
+    (function() {
+        var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+        ga.src = 'https://ssl.google-analytics.com/ga.js';
+        var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+    })();
+    </script>
+<script type="text/javascript">
+    var disqus_shortname = 'https://wisk.disqus.com';
+    (function () {
+        var s = document.createElement('script'); s.async = true;
+        s.type = 'text/javascript';
+        s.src = 'https://' + disqus_shortname + '.disqus.com/count.js';
+        (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+    }());
+</script>
 </body>
 </html>
